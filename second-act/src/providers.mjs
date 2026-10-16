@@ -142,14 +142,24 @@ function validEntityType(entity, expected) {
   return entity?.type === expected || (Array.isArray(entity?.types) && entity.types.includes(expected));
 }
 
-function descriptor(name, kind, explicitId, label) {
+function validYear(value) {
+  return Number.isInteger(value) && value >= 1 && value <= 9999;
+}
+
+function descriptor(name, kind, explicitId, label, target, { year, director } = {}) {
   if (!Object.hasOwn(ENTITY_TYPES, kind) || typeof name !== 'string' || !name.trim() || name.length > 200) {
     throw fail('INVALID_PROVIDER_INPUT', 'Every movie and taste anchor needs a nonempty name and a supported entity kind.', { status: 400 });
   }
   if (explicitId !== undefined && (typeof explicitId !== 'string' || !UUID.test(explicitId))) {
     throw fail('INVALID_ENTITY_ID', 'qlooEntityId must be a valid UUID copied from Qloo.', { status: 400 });
   }
-  return { name: name.trim(), kind, explicitId: explicitId?.toLowerCase(), label };
+  if (year !== undefined && !validYear(year)) {
+    throw fail('INVALID_PROVIDER_INPUT', 'An identity year must be an integer from 1 to 9999.', { status: 400 });
+  }
+  if (director !== undefined && (typeof director !== 'string' || !director.trim() || director.length > 200)) {
+    throw fail('INVALID_PROVIDER_INPUT', 'An identity director must be a nonempty string of at most 200 characters.', { status: 400 });
+  }
+  return { name: name.trim(), kind, explicitId: explicitId?.toLowerCase(), label, target, year, director };
 }
 
 function validateCollection(collection, label) {
@@ -158,17 +168,95 @@ function validateCollection(collection, label) {
   }
   const seen = new Set();
   for (const item of collection) {
-    if (!item || typeof item.id !== 'string' || !item.id || seen.has(item.id)) {
+    if (!item || typeof item.id !== 'string' || !item.id || item.id.length > 200 || /[\u0000-\u001f\u007f]/.test(item.id) || seen.has(item.id)) {
       throw fail('INVALID_PROVIDER_INPUT', `${label} IDs must be nonempty and unique.`, { status: 400 });
     }
     seen.add(item.id);
   }
 }
 
+function publicText(value, limit, key) {
+  if (typeof value !== 'string') return undefined;
+  const text = value.split(key).join('[redacted]').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, limit);
+  return text || undefined;
+}
+
+function movieYear(entity) {
+  const releaseYear = validYear(entity?.properties?.release_year) ? entity.properties.release_year : undefined;
+  const releaseDate = entity?.properties?.release_date;
+  let dateYear;
+  if (typeof releaseDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(releaseDate)) {
+    const parsed = new Date(`${releaseDate}T00:00:00.000Z`);
+    if (Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === releaseDate) {
+      const year = Number(releaseDate.slice(0, 4));
+      if (validYear(year)) dateYear = year;
+    }
+  }
+  const conflict = releaseYear !== undefined && dateYear !== undefined && releaseYear !== dateYear;
+  return { year: conflict ? undefined : releaseYear ?? dateYear, conflict };
+}
+
+function searchCandidates(entities, item, key) {
+  const byId = new Map();
+  for (const entity of entities.slice(0, 12)) {
+    if (typeof entity?.entity_id !== 'string' || !UUID.test(entity.entity_id)
+        || !validEntityType(entity, ENTITY_TYPES[item.kind])
+        || typeof entity.name !== 'string' || !entity.name.trim() || entity.name.length > 200) continue;
+    const entityId = entity.entity_id.toLowerCase();
+    const name = publicText(entity.name, 200, key);
+    if (!name) continue;
+    const normalized = normalizedName(entity.name);
+    const metadata = item.kind === 'movie' ? movieYear(entity) : { year: undefined, conflict: false };
+    const existing = byId.get(entityId);
+    if (existing) {
+      if (existing.normalized !== normalized) existing.nameConflict = true;
+      if (metadata.conflict || (existing.card.year !== undefined && metadata.year !== undefined && existing.card.year !== metadata.year)) existing.yearConflict = true;
+      if (existing.card.year === undefined && metadata.year !== undefined) existing.card.year = metadata.year;
+      if (existing.yearConflict) delete existing.card.year;
+      continue;
+    }
+    const card = { entityId, name, kind: item.kind };
+    if (metadata.year !== undefined) card.year = metadata.year;
+    const disambiguation = publicText(entity.disambiguation, 300, key);
+    const description = publicText(entity.properties?.description, 500, key);
+    if (disambiguation) card.disambiguation = disambiguation;
+    if (description) card.description = description;
+    byId.set(entityId, { card, normalized, nameConflict: false, yearConflict: metadata.conflict });
+  }
+  return [...byId.values()];
+}
+
+function identityFailure(item, candidates, reason, key, durationMs) {
+  const name = publicText(item.name, 200, key);
+  const ambiguous = reason === 'ambiguous';
+  const requested = `${JSON.stringify(name)}${item.year !== undefined ? ` (${item.year})` : ''}`;
+  const message = reason === 'year-mismatch'
+    ? `Qloo could not verify the requested movie year for ${requested}. Provide qlooEntityId manually after confirming the intended entity.`
+    : ambiguous
+      ? `Qloo returned multiple exact entity matches for ${requested}. Provide qlooEntityId manually after checking the intended entity in Qloo.`
+      : `Qloo found no exact entity match for ${requested}. Provide qlooEntityId manually after checking the intended entity in Qloo.`;
+  const error = fail(ambiguous ? 'ENTITY_AMBIGUOUS' : 'ENTITY_NOT_FOUND', message, {
+    status: 422,
+    trace: [{ tool: 'qloo.search', status: 'error', detail: `${item.label}: ${reason} ${item.kind} identity.`, ...(durationMs !== undefined ? { durationMs } : {}) }],
+  });
+  const resolution = { target: { ...item.target }, name, kind: item.kind, candidates, reason };
+  if (item.year !== undefined) resolution.year = item.year;
+  if (item.director !== undefined) resolution.director = publicText(item.director, 200, key);
+  error.resolutions = [resolution];
+  return error;
+}
+
+function resolvedEntity(item, result, key) {
+  const value = { target: { ...item.target }, entityId: result.entityId, name: result.name ?? publicText(item.name, 200, key), kind: item.kind };
+  if (result.year !== undefined) value.year = result.year;
+  return value;
+}
+
 async function resolveEntity(item, key, fetchImpl) {
   if (item.explicitId) {
     return {
       entityId: item.explicitId,
+      ...(item.kind === 'movie' && item.year !== undefined ? { year: item.year } : {}),
       trace: [{ tool: 'qloo.resolve', status: 'ok', detail: `${item.label}: using an explicitly supplied ${item.kind} UUID; identity was not reverified.` }],
     };
   }
@@ -184,37 +272,28 @@ async function resolveEntity(item, key, fetchImpl) {
     }, { provider: 'qloo', fetchImpl, tool: 'qloo.search' });
   } catch (error) {
     if (error instanceof ProviderError && error.upstreamStatus === 404) {
-      error.code = 'ENTITY_NOT_FOUND';
-      error.message = 'Qloo found no exact entity match. Provide qlooEntityId manually after checking the intended entity in Qloo.';
-      error.status = 422;
-      error.trace = [{ tool: 'qloo.search', status: 'error', detail: error.message }];
+      throw identityFailure(item, [], 'not-found', key);
     }
     throw error;
   }
-  if (!Array.isArray(result.data.results)) {
-    throw fail('PROVIDER_INVALID_RESPONSE', 'Qloo search did not return the documented results array. No evidence was substituted.', {
+  if (!Array.isArray(result.data.results) || result.data.results.length > 12) {
+    throw fail('PROVIDER_INVALID_RESPONSE', 'Qloo search did not return the documented bounded results array. No evidence was substituted.', {
       trace: [{ tool: 'qloo.search', status: 'error', detail: 'Incompatible search response.' }],
     });
   }
-  const matches = new Set(result.data.results.filter((entity) =>
-    typeof entity?.name === 'string'
-    && normalizedName(entity.name) === normalizedName(item.name)
-    && typeof entity.entity_id === 'string'
-    && UUID.test(entity.entity_id)
-    && validEntityType(entity, ENTITY_TYPES[item.kind]),
-  ).map((entity) => entity.entity_id.toLowerCase()));
-  if (matches.size !== 1) {
-    const ambiguous = matches.size > 1;
-    throw fail(ambiguous ? 'ENTITY_AMBIGUOUS' : 'ENTITY_NOT_FOUND',
-      ambiguous
-        ? 'Qloo returned multiple exact entity matches. Provide qlooEntityId manually after checking the intended entity in Qloo.'
-        : 'Qloo found no exact entity match. Provide qlooEntityId manually after checking the intended entity in Qloo.',
-      { status: 422, trace: [{ tool: 'qloo.search', status: 'error', detail: `${item.label}: ${ambiguous ? 'ambiguous' : 'unresolved'} ${item.kind} identity.`, durationMs: result.durationMs }] },
-    );
+  const candidates = searchCandidates(result.data.results, item, key);
+  const exact = candidates.filter((candidate) => !candidate.nameConflict && candidate.normalized === normalizedName(item.name));
+  const checkYear = item.kind === 'movie' && item.year !== undefined;
+  const consistent = exact.filter((candidate) => !candidate.yearConflict);
+  const matches = checkYear ? consistent.filter((candidate) => candidate.card.year === item.year) : consistent;
+  if (matches.length !== 1) {
+    const reason = matches.length > 1 ? 'ambiguous' : checkYear && exact.length > 0 ? 'year-mismatch' : 'not-found';
+    throw identityFailure(item, candidates.map((candidate) => candidate.card), reason, key, result.durationMs);
   }
+  const match = matches[0].card;
   return {
-    entityId: [...matches][0],
-    trace: [{ tool: 'qloo.search', status: 'ok', detail: `${item.label}: resolved ${item.kind} by one exact normalized name match.`, durationMs: result.durationMs }],
+    entityId: match.entityId, name: match.name, ...(match.year !== undefined ? { year: match.year } : {}),
+    trace: [{ tool: 'qloo.search', status: 'ok', detail: `${item.label}: resolved ${item.kind} by one exact normalized name${checkYear ? ' and release year' : ''} match.`, durationMs: result.durationMs }],
   };
 }
 
@@ -228,19 +307,42 @@ export async function getLiveEvidence({ inventory, cohorts }, env, { fetchImpl =
   validateCollection(inventory, 'inventory film');
   validateCollection(cohorts, 'cohort');
   if (inventory.length > 50) throw fail('INVALID_PROVIDER_INPUT', 'Live evidence supports at most 50 inventory movies per request.', { status: 400 });
-  const descriptors = inventory.map((film, index) => descriptor(film.title, 'movie', film.qlooEntityId, `inventory[${index}]`));
+  const descriptors = inventory.map((film, index) => descriptor(film.title, 'movie', film.qlooEntityId, `inventory[${index}]`, { type: 'inventory', filmId: film.id }, film));
   const cohortOffsets = [];
   for (const [index, cohort] of cohorts.entries()) {
     if (!Array.isArray(cohort.anchors) || !cohort.anchors.length) {
       throw fail('INVALID_PROVIDER_INPUT', 'Every cohort needs at least one movie, artist, or book taste anchor.', { status: 400 });
     }
     cohortOffsets.push({ offset: descriptors.length, count: cohort.anchors.length });
-    cohort.anchors.forEach((anchor, anchorIndex) => descriptors.push(
-      descriptor(anchor?.name, anchor?.kind, anchor?.qlooEntityId, `cohorts[${index}].anchors[${anchorIndex}]`),
-    ));
+    cohort.anchors.forEach((anchor, anchorIndex) => {
+      let year = anchor?.year;
+      if (anchor?.kind === 'movie' && year === undefined && typeof anchor.name === 'string') {
+        const matchingFilms = inventory.filter((film) => normalizedName(film.title) === normalizedName(anchor.name));
+        const years = new Set(matchingFilms.map((film) => film.year));
+        if (matchingFilms.length && years.size === 1 && validYear(matchingFilms[0].year)) year = matchingFilms[0].year;
+      }
+      descriptors.push(descriptor(anchor?.name, anchor?.kind, anchor?.qlooEntityId, `cohorts[${index}].anchors[${anchorIndex}]`, { type: 'anchor', cohortId: cohort.id, anchorIndex }, { year, director: anchor?.director }));
+    });
   }
-  const resolved = await boundedMap(descriptors, (item) => resolveEntity(item, key, fetchImpl));
+  const resolved = await boundedMap(descriptors, async (item) => {
+    try { return await resolveEntity(item, key, fetchImpl); }
+    catch (error) {
+      // Identity questions are collected for one confirmation batch. Transport
+      // and schema errors still stop new requests and never become choices.
+      if (error instanceof ProviderError && Array.isArray(error.resolutions)) return { resolutionError: error, trace: error.trace };
+      throw error;
+    }
+  });
   const trace = resolved.flatMap((item) => item.trace);
+  const resolvedEntities = resolved.flatMap((result, index) => result.resolutionError ? [] : [resolvedEntity(descriptors[index], result, key)]);
+  const resolutionErrors = resolved.filter((result) => result.resolutionError).map((result) => result.resolutionError);
+  if (resolutionErrors.length) {
+    const error = resolutionErrors[0];
+    error.resolutions = resolutionErrors.flatMap((item) => item.resolutions);
+    error.resolvedEntities = resolvedEntities;
+    error.trace = trace;
+    throw error;
+  }
   const resolvedInventory = inventory.map((film, index) => ({ id: film.id, qlooEntityId: resolved[index].entityId }));
   const resolvedCohorts = cohorts.map((cohort, index) => {
     const { offset, count } = cohortOffsets[index];
@@ -302,7 +404,7 @@ export async function getLiveEvidence({ inventory, cohorts }, env, { fetchImpl =
   return {
     provider: 'qloo', support,
     trace: [...trace, ...results.flatMap((result) => result.trace)],
-    resolvedInventory, resolvedCohorts,
+    resolvedInventory, resolvedCohorts, resolvedEntities,
     methodology: 'Local relative recommendation index: 100 × (1 − zero-based rank / (returned count − 1)); a single result is 100. Missing entities remain unscored. List order is evidence, not an affinity probability or attendance prediction.',
   };
 }

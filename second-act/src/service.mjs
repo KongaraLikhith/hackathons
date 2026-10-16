@@ -51,12 +51,14 @@ export async function recover(body = {}, env = {}, { fetchImpl } = {}) {
 
   let evidence;
   let methodology;
+  let resolvedEntities = [];
   if (mode === 'live') {
     // Preserve the reference pool. Eligibility constraints are applied after
     // Qloo returns an ordered list for the entire supplied inventory.
     const result = await getLiveEvidence({ inventory, cohorts }, env, { fetchImpl });
     evidence = result.support;
     methodology = result.methodology;
+    resolvedEntities = result.resolvedEntities || [];
     trace.push(...result.trace);
   } else {
     const result = getSampleEvidence(inventory, cohorts);
@@ -73,7 +75,7 @@ export async function recover(body = {}, env = {}, { fetchImpl } = {}) {
 
   return {
     ...ranking, mode, provider: mode === 'sample' ? 'sample' : 'qloo',
-    evidence, trace, methodology, incident, cohorts, inventory, constraints,
+    evidence, trace, methodology, resolvedEntities, incident, cohorts, inventory, constraints,
     fairness, excludedIds, createdAt: new Date().toISOString(),
   };
 }
@@ -118,7 +120,10 @@ function getSampleEvidence(inventory, cohorts) {
   const missingFilms = [];
   const support = Object.fromEntries(inventory.map((film) => {
     const canonical = FIXTURE_FILMS.get(film.id);
-    if (!canonical || film.title !== canonical.title) {
+    if (!canonical || film.title !== canonical.title
+        || (canonical.year ?? null) !== (film.year ?? null)
+        || normalizedTitle(canonical.director ?? '') !== normalizedTitle(film.director ?? '')
+        || (canonical.qlooEntityId ?? null) !== (film.qlooEntityId ?? null)) {
       missingFilms.push(film.id);
       return [film.id, {}];
     }
@@ -156,7 +161,7 @@ function validateInventory(value) {
     };
     for (const field of ['director', 'genre', 'contractRef']) if (entry[field] !== undefined) film[field] = text(entry[field], `${label}.${field}`);
     if (entry.color !== undefined) film.color = color(entry.color, `${label}.color`);
-    if (entry.year !== undefined) film.year = integer(entry.year, `${label}.year`, 0, 9999);
+    if (entry.year !== undefined) film.year = integer(entry.year, `${label}.year`, 1, 9999);
     if (entry.qlooEntityId !== undefined) film.qlooEntityId = entityId(entry.qlooEntityId, `${label}.qlooEntityId`);
     return film;
   });
@@ -177,6 +182,10 @@ function validateCohorts(value) {
         requireRecord(anchor, prefix);
         if (!['movie', 'artist', 'book'].includes(anchor.kind)) invalid(`${prefix}.kind must be movie, artist or book.`);
         const result = { name: text(anchor.name, `${prefix}.name`), kind: anchor.kind };
+        if (anchor.year !== undefined) {
+          if (anchor.kind !== 'movie') invalid(`${prefix}.year is only supported for movie anchors.`);
+          result.year = integer(anchor.year, `${prefix}.year`, 1, 9999);
+        }
         if (anchor.qlooEntityId !== undefined) result.qlooEntityId = entityId(anchor.qlooEntityId, `${prefix}.qlooEntityId`);
         return result;
       }),
@@ -272,7 +281,7 @@ function entityId(value, label) {
   return value.toLowerCase();
 }
 function anchorSignature(anchors) {
-  return JSON.stringify(anchors.map((anchor) => [anchor.kind, anchor.name]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b), 'en')));
+  return JSON.stringify(anchors.map((anchor) => [anchor.kind, anchor.name, anchor.year ?? null, anchor.qlooEntityId?.toLowerCase() ?? null]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b), 'en')));
 }
 function normalizedTitle(value) {
   return value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');

@@ -58,7 +58,9 @@ export default {
         rateLimit(request,env,'notice');return json(await createNotice(body,env));
       } catch(e) {
         const status=Number.isInteger(e.status)&&e.status>=400&&e.status<600?e.status:500;
-        return json({error:status===500?'The recovery could not be completed. Check the catalog and retry.':e.message,code:e.code||'REQUEST_FAILED',trace:e.trace||[]},status);
+        const identity = status===422 && ['ENTITY_AMBIGUOUS','ENTITY_NOT_FOUND'].includes(e.code)
+          ? {resolutions:e.resolutions||[],resolvedEntities:e.resolvedEntities||[]} : {};
+        return json({error:status===500?'The recovery could not be completed. Check the catalog and retry.':e.message,code:e.code||'REQUEST_FAILED',trace:e.trace||[],...identity},status);
       }
     }
     return response('Method not allowed','text/plain',405,{'allow':'GET, POST'});

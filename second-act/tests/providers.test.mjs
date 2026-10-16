@@ -11,6 +11,241 @@ const explicitRequest = () => ({
   inventory: [{ id: 'film-a', title: 'Film A', qlooEntityId: id(1) }, { id: 'film-b', title: 'Film B', qlooEntityId: id(2) }, { id: 'missing', title: 'Missing Film', qlooEntityId: id(3) }],
   cohorts: [{ id: 'cohort-a', anchors: [{ name: 'Anchor A', kind: 'book', qlooEntityId: id(4) }] }],
 });
+const movieRequest = (identity = {}) => {
+  const request = explicitRequest();
+  request.inventory = [{ id: 'film-a', title: 'Film A', ...identity }];
+  return request;
+};
+const datedEntity = (name, n, year, extra = {}) => ({ ...entity(name, n), properties: { release_year: year, ...extra } });
+
+test('movie year selects one exact title and director remains display-only', async () => {
+  const request = movieRequest({ year: 2023, director: 'Organizer-reported director' });
+  const result = await getLiveEvidence(request, env, { fetchImpl: async (url) => {
+    const parsed = new URL(url);
+    if (parsed.pathname === '/search') return json({ results: [datedEntity('Film A', 9, 1990), datedEntity('FILM A', 1, 2023, { director: 'Different unverified field' })] });
+    assert.equal(parsed.searchParams.get('filter.results.entities'), id(1));
+    return json({ results: { entities: [entity('FILM A', 1)] } });
+  } });
+  assert.deepEqual(result.resolvedEntities[0], { target: { type: 'inventory', filmId: 'film-a' }, entityId: id(1), name: 'FILM A', kind: 'movie', year: 2023 });
+  assert.match(result.trace[0].detail, /release year/);
+});
+
+test('a valid release date supplies the movie year when the numeric year is unavailable', async () => {
+  const result = await getLiveEvidence(movieRequest({ year: 2024 }), env, { fetchImpl: async (url) => {
+    if (new URL(url).pathname === '/search') return json({ results: [datedEntity('Film A', 1, undefined, { release_date: '2024-02-29' })] });
+    return json({ results: { entities: [entity('Film A', 1)] } });
+  } });
+  assert.equal(result.resolvedEntities[0].year, 2024);
+});
+
+test('missing, conflicting, invalid, or incorrectly typed movie years require confirmation', async (t) => {
+  const variants = [
+    { label: 'missing', properties: {} },
+    { label: 'wrong year', properties: { release_year: 1990 } },
+    { label: 'numeric string', properties: { release_year: '2023' } },
+    { label: 'invalid calendar date', properties: { release_date: '2023-02-30' } },
+    { label: 'timestamp instead of documented date', properties: { release_date: '2023-01-01T00:00:00Z' } },
+    { label: 'conflicting date and year', properties: { release_year: 2023, release_date: '2022-01-01' } },
+  ];
+  for (const variant of variants) {
+    await t.test(variant.label, async () => {
+      let calls = 0;
+      await assert.rejects(getLiveEvidence(movieRequest({ year: 2023, director: 'Reported Director' }), env, { fetchImpl: async (url) => {
+        calls++;
+        assert.equal(new URL(url).pathname, '/search');
+        return json({ results: [{ ...entity('Film A', 1), properties: variant.properties }] });
+      } }), (error) => {
+        assert.equal(error.code, 'ENTITY_NOT_FOUND');
+        assert.match(error.message, /Film A.*2023/);
+        assert.match(error.message, /qlooEntityId manually/);
+        assert.deepEqual(error.resolutions[0].target, { type: 'inventory', filmId: 'film-a' });
+        assert.equal(error.resolutions[0].reason, 'year-mismatch');
+        assert.equal(error.resolutions[0].year, 2023);
+        assert.equal(error.resolutions[0].director, 'Reported Director');
+        assert.equal(error.resolutions[0].candidates.length, 1);
+        return true;
+      });
+      assert.equal(calls, 1);
+    });
+  }
+});
+
+test('multiple exact movies with the same requested year remain ambiguous', async () => {
+  await assert.rejects(getLiveEvidence(movieRequest({ year: 2023 }), env, { fetchImpl: async () => json({ results: [datedEntity('Film A', 1, 2023), datedEntity('Film A', 2, 2023)] }) }), (error) => {
+    assert.equal(error.code, 'ENTITY_AMBIGUOUS');
+    assert.equal(error.resolutions[0].reason, 'ambiguous');
+    assert.deepEqual(error.resolutions[0].candidates.map((candidate) => candidate.year), [2023, 2023]);
+    return true;
+  });
+});
+
+test('duplicate UUIDs with conflicting years do not silently resolve even without a requested year', async () => {
+  await assert.rejects(getLiveEvidence(movieRequest(), env, { fetchImpl: async () => json({ results: [datedEntity('Film A', 1, 1984), datedEntity('Film A', 1, 2004)] }) }), (error) => {
+    assert.equal(error.code, 'ENTITY_NOT_FOUND');
+    assert.equal(error.resolutions[0].candidates.length, 1);
+    assert.equal(Object.hasOwn(error.resolutions[0].candidates[0], 'year'), false);
+    return true;
+  });
+});
+
+test('movie anchors inherit a year only from an exact inventory title with one known year', async () => {
+  const request = movieRequest({ year: 2023, qlooEntityId: id(1) });
+  request.cohorts[0].anchors = [{ name: 'FILM A', kind: 'movie' }];
+  const result = await getLiveEvidence(request, env, { fetchImpl: async (url) => {
+    const parsed = new URL(url);
+    if (parsed.pathname === '/search') return json({ results: [datedEntity('Film A', 9, 1990), datedEntity('Film A', 1, 2023)] });
+    assert.equal(parsed.searchParams.get('signal.interests.entities'), id(1));
+    return json({ results: { entities: [entity('Film A', 1)] } });
+  } });
+  assert.deepEqual(result.resolvedEntities[1], { target: { type: 'anchor', cohortId: 'cohort-a', anchorIndex: 0 }, entityId: id(1), name: 'Film A', kind: 'movie', year: 2023 });
+});
+
+test('an explicitly supplied anchor year takes precedence over same-title inventory metadata', async () => {
+  const request = movieRequest({ year: 2023, qlooEntityId: id(1) });
+  request.cohorts[0].anchors = [{ name: 'Film A', kind: 'movie', year: 1990 }];
+  const result = await getLiveEvidence(request, env, { fetchImpl: async (url) => {
+    const parsed = new URL(url);
+    if (parsed.pathname === '/search') return json({ results: [datedEntity('Film A', 9, 1990), datedEntity('Film A', 1, 2023)] });
+    assert.equal(parsed.searchParams.get('signal.interests.entities'), id(9));
+    return json({ results: { entities: [entity('Film A', 1)] } });
+  } });
+  assert.equal(result.resolvedEntities[1].year, 1990);
+});
+
+test('different-year or partly unknown inventory identities do not supply an anchor year', async (t) => {
+  for (const otherYear of [1990, undefined]) {
+    await t.test(String(otherYear), async () => {
+      const request = movieRequest({ year: 2023, qlooEntityId: id(1) });
+      request.inventory.push({ id: 'film-b', title: 'Film A', qlooEntityId: id(2), ...(otherYear !== undefined ? { year: otherYear } : {}) });
+      request.cohorts[0].anchors = [{ name: 'Film A', kind: 'movie' }];
+      await assert.rejects(getLiveEvidence(request, env, { fetchImpl: async () => json({ results: [datedEntity('Film A', 9, 1990), datedEntity('Film A', 1, 2023)] }) }), (error) => {
+        assert.equal(error.code, 'ENTITY_AMBIGUOUS');
+        assert.equal(Object.hasOwn(error.resolutions[0], 'year'), false);
+        return true;
+      });
+    });
+  }
+});
+
+test('all identity problems are collected in descriptor order with successes preserved and no Insights call', async () => {
+  const request = explicitRequest();
+  request.inventory.forEach((film) => delete film.qlooEntityId);
+  request.cohorts = [
+    { id: 'cohort-a', anchors: [{ name: 'Book A', kind: 'book' }, { name: 'Artist A', kind: 'artist' }] },
+    { id: 'cohort-b', anchors: [{ name: 'Old Film', kind: 'movie', year: 1990 }, { name: 'No Book', kind: 'book' }] },
+  ];
+  const calls = [];
+  await assert.rejects(getLiveEvidence(request, env, { fetchImpl: async (url) => {
+    const parsed = new URL(url);
+    assert.equal(parsed.pathname, '/search');
+    const query = parsed.searchParams.get('query');
+    calls.push(query);
+    await new Promise((resolve) => setTimeout(resolve, query === 'Film A' ? 5 : 0));
+    const results = {
+      'Film A': [entity('Film A', 1), entity('Film A', 9)],
+      'Film B': [entity('Film B', 2)],
+      'Book A': [entity('Book A', 10, 'book'), entity('Book A', 11, 'book')],
+      'Artist A': [entity('Artist A', 4, 'artist')],
+      'Old Film': [datedEntity('Old Film', 12, 2023)],
+      'No Book': [entity('A Similar Book', 15, 'book')],
+    };
+    return query === 'Missing Film' ? json({ error: 'No results' }, 404) : json({ results: results[query] });
+  } }), (error) => {
+    assert.equal(error.code, 'ENTITY_AMBIGUOUS');
+    assert.deepEqual(error.resolutions.map((resolution) => resolution.target), [
+      { type: 'inventory', filmId: 'film-a' },
+      { type: 'inventory', filmId: 'missing' },
+      { type: 'anchor', cohortId: 'cohort-a', anchorIndex: 0 },
+      { type: 'anchor', cohortId: 'cohort-b', anchorIndex: 0 },
+      { type: 'anchor', cohortId: 'cohort-b', anchorIndex: 1 },
+    ]);
+    assert.deepEqual(error.resolutions.map((resolution) => resolution.reason), ['ambiguous', 'not-found', 'ambiguous', 'year-mismatch', 'not-found']);
+    assert.deepEqual(error.resolvedEntities, [
+      { target: { type: 'inventory', filmId: 'film-b' }, entityId: id(2), name: 'Film B', kind: 'movie' },
+      { target: { type: 'anchor', cohortId: 'cohort-a', anchorIndex: 1 }, entityId: id(4), name: 'Artist A', kind: 'artist' },
+    ]);
+    assert.equal(error.trace.length, 7);
+    assert.ok(!JSON.stringify(error).includes(env.QLOO_API_KEY));
+    return true;
+  });
+  assert.equal(calls.length, 7);
+});
+
+test('transport and schema failures remain fatal instead of becoming confirmation questions', async (t) => {
+  for (const failure of ['rate-limit', 'schema']) {
+    await t.test(failure, async () => {
+      const request = explicitRequest();
+      request.inventory.forEach((film) => delete film.qlooEntityId);
+      await assert.rejects(getLiveEvidence(request, env, { fetchImpl: async (url) => {
+        const query = new URL(url).searchParams.get('query');
+        if (query === 'Film A') return json({ results: [entity('Film A', 1), entity('Film A', 9)] });
+        if (query === 'Film B') return failure === 'rate-limit' ? json({ error: env.QLOO_API_KEY }, 429) : json({ results: null });
+        return json({ results: [] });
+      } }), (error) => {
+        assert.equal(error.code, failure === 'rate-limit' ? 'PROVIDER_RATE_LIMITED' : 'PROVIDER_INVALID_RESPONSE');
+        assert.equal(error.resolutions, undefined);
+        assert.ok(!JSON.stringify(error).includes(env.QLOO_API_KEY));
+        return true;
+      });
+    });
+  }
+});
+
+test('manual candidate cards expose only bounded typed fields and redact echoed keys', async () => {
+  const alphabeticId = 'abcdefab-cdef-4abc-8def-abcdefabcdef';
+  await assert.rejects(getLiveEvidence(movieRequest(), env, { fetchImpl: async () => json({ results: [
+    { ...datedEntity('Film A sequel', 1, 2023), entity_id: alphabeticId.toUpperCase(), disambiguation: `${env.QLOO_API_KEY}\u0000\n${'d'.repeat(400)}`, properties: { release_year: 2023, description: `${env.QLOO_API_KEY}\n${'x'.repeat(600)}`, apiKey: env.QLOO_API_KEY, directors: ['Unverified'] }, secret: env.QLOO_API_KEY, external: { unsafe: [{ url: 'javascript:alert(1)' }] } },
+    { ...datedEntity('Film A sequel', 1, 2023), entity_id: alphabeticId },
+    entity('Wrong Type', 2, 'book'),
+    { ...entity('Invalid UUID', 3), entity_id: 'not-a-uuid' },
+    { ...entity('Bad name', 4), name: { key: env.QLOO_API_KEY } },
+    { ...entity('Other Film', 5), disambiguation: { raw: env.QLOO_API_KEY }, properties: { description: ['not plain text'] } },
+  ] }) }), (error) => {
+    assert.equal(error.code, 'ENTITY_NOT_FOUND');
+    const cards = error.resolutions[0].candidates;
+    assert.equal(cards.length, 2);
+    assert.deepEqual(Object.keys(cards[0]).sort(), ['entityId', 'name', 'kind', 'year', 'disambiguation', 'description'].sort());
+    assert.equal(cards[0].entityId, alphabeticId);
+    assert.equal(cards[0].year, 2023);
+    assert.equal(cards[0].disambiguation.length, 300);
+    assert.equal(cards[0].description.length, 500);
+    assert.equal(/[\u0000-\u001f\u007f]/.test(cards[0].disambiguation + cards[0].description), false);
+    assert.deepEqual(cards[1], { entityId: id(5), name: 'Other Film', kind: 'movie' });
+    const serialized = JSON.stringify(error);
+    assert.ok(!serialized.includes(env.QLOO_API_KEY));
+    assert.ok(!serialized.includes('javascript:'));
+    assert.ok(!serialized.includes('directors'));
+    return true;
+  });
+});
+
+test('book candidates do not infer publication years or authors from undocumented fields', async () => {
+  const request = movieRequest({ qlooEntityId: id(1) });
+  request.cohorts[0].anchors = [{ name: 'Book A', kind: 'book' }];
+  await assert.rejects(getLiveEvidence(request, env, { fetchImpl: async () => json({ results: [
+    { ...entity('Book A', 4, 'book'), properties: { publication_year: 1987, release_year: 1987, authors: ['A Person'], description: 'A written work.' }, disambiguation: '1987, A Person' },
+    entity('Book A', 5, 'book'),
+  ] }) }), (error) => {
+    assert.equal(error.code, 'ENTITY_AMBIGUOUS');
+    assert.deepEqual(error.resolutions[0].candidates[0], { entityId: id(4), name: 'Book A', kind: 'book', disambiguation: '1987, A Person', description: 'A written work.' });
+    return true;
+  });
+});
+
+test('oversized search results are rejected before a hidden thirteenth match can be ignored', async () => {
+  const results = [entity('Film A', 1), ...Array.from({ length: 11 }, (_, index) => entity(`Other Film ${index}`, index + 10)), entity('Film A', 2)];
+  await assert.rejects(getLiveEvidence(movieRequest(), env, { fetchImpl: async () => json({ results }) }), { code: 'PROVIDER_INVALID_RESPONSE' });
+});
+
+test('invalid requested identity metadata fails before making a provider call', async (t) => {
+  for (const identity of [{ year: '2023' }, { year: 2023.5 }, { year: 0 }, { year: 10000 }, { director: [] }]) {
+    await t.test(JSON.stringify(identity), async () => {
+      let calls = 0;
+      await assert.rejects(getLiveEvidence(movieRequest(identity), env, { fetchImpl: async () => { calls++; } }), { code: 'INVALID_PROVIDER_INPUT' });
+      assert.equal(calls, 0);
+    });
+  }
+});
 
 test('uses exact documented Qloo calls, conservative normalized names, and ordered rank only', async () => {
   const calls = [];

@@ -102,6 +102,38 @@ test('changing a cohort taste anchor or cohort identity invalidates fixture evid
   }
 });
 
+test('changing identity metadata or supplying another UUID cannot reuse authored sample evidence', async (t) => {
+  for (const change of [{ year: 2000 }, { director: 'Another filmmaker' }, { qlooEntityId: uuid(99) }]) {
+    await t.test(`film ${JSON.stringify(change)}`, async () => {
+      const inventory = [{ ...copy(canonicalScenario.inventory[0]), ...change }];
+      const result = await recover(input({ inventory }), {});
+      assert.equal(result.infeasible, true);
+      assert.ok(result.blocked[0].reasonCodes.includes('missing_evidence'));
+    });
+  }
+  for (const change of [{ year: 2000 }, { qlooEntityId: uuid(99) }]) {
+    await t.test(`anchor ${JSON.stringify(change)}`, async () => {
+      const cohorts = copy(canonicalScenario.cohorts);
+      Object.assign(cohorts[0].anchors[0], change);
+      const result = await recover(input({ cohorts }), {});
+      assert.equal(result.infeasible, true);
+      assert.ok(result.blocked.every(row => row.reasonCodes.includes('missing_evidence')));
+    });
+  }
+});
+
+test('movie anchor years are validated and preserved before provider calls', async () => {
+  const cohorts = copy(canonicalScenario.cohorts);
+  for (const year of [0, 10000, 2023.5, '2023', NaN]) {
+    cohorts[0].anchors[0].year = year;
+    await assert.rejects(recover(input({ cohorts }), {}), invalidInput);
+  }
+  cohorts[0].anchors[0] = { name: 'Norwegian Wood', kind: 'book', year: 1987 };
+  await assert.rejects(recover(input({ cohorts }), {}), invalidInput);
+  const result = await recover(input(), {});
+  assert.equal(result.cohorts[0].anchors[0].year, 2014);
+});
+
 test('an imported inventory must carry a complete rights ledger before provider access', async (t) => {
   for (const field of ['rightsStart', 'rightsEnd', 'territory', 'screeningsRemaining']) {
     await t.test(`missing ${field}`, async () => {

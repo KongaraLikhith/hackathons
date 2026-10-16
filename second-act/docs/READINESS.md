@@ -1,6 +1,6 @@
 # Second Act — release and submission checklist
 
-As of 16 October 2026: the working sample app and MIT source are public; the Qloo event key is configured server-side and the adapter targets the assigned hackathon host. Authenticated verification is pending because this workspace denies outbound connections before either host is reached. No final Devpost submission or user-study result is recorded. Mechanical tests do not complete entrant review checkpoints.
+As of 16 October 2026: the working sample app and MIT source are public; the Qloo event key is configured server-side and the adapter targets the assigned hackathon host. The entrant’s browser has reached authenticated Qloo search; complete live Insights/recovery verification remains pending. This workspace still denies outbound connections before either host is reached. No final Devpost submission or user-study result is recorded. Mechanical tests do not complete entrant review checkpoints.
 
 ## What we need from the entrant
 
@@ -16,7 +16,7 @@ As of 16 October 2026: the working sample app and MIT source are public; the Qlo
 - [ ] Import the documented inventory format; show an actionable error for malformed dates, missing territory, invalid counts, negative fees, and ambiguous title/entity mapping.
 - [ ] Exclude the cancelled title and every candidate failing the screening window, territory, remaining count, runtime, or budget. A missing required rights field must not pass.
 - [ ] Confirm inclusive date boundaries, the selected territory semantics, fee units, and screening-count meaning in both the UI and documentation.
-- [ ] Resolve movie/book/artist audience anchors to the intended Qloo entities through one exact normalized-name match or manually checked `qlooEntityId` values in the import. Ambiguous or missing matches must stop. Rank only the bounded imported inventory (maximum 20 films); recommend only eligible candidates.
+- [ ] Resolve movie/book/artist audience anchors to the intended Qloo entities through one exact normalized-name match or manually checked `qlooEntityId` values in the import. Movie years must match when supplied. Ambiguous or missing matches must open the in-app confirmation flow; no unsupported fuzzy choice is automatic. Rank only the bounded imported inventory (maximum 20 films); recommend only eligible candidates.
 - [ ] Preserve Qloo returned-order ranks and show missing evidence. Do not display derived ranking values as provider affinity or attendance probability.
 - [ ] Exercise the 70% minimum-cohort / 30% population-weighted mean default and deterministic ties. Confirm the documented secondary order: minimum, mean, title, ID. Missing or invalid cohort evidence must fail closed.
 - [ ] Exercise a no-feasible-candidate case. Propose only budget/runtime changes for otherwise eligible films and require explicit constraint changes. Changing a software setting must not imply a contract was amended.

@@ -27,7 +27,7 @@ The entrant reports US residence, age 24, solo participation, and a free-tools-o
 - [Basic Insights response](https://github.com/qloo/docs-public/blob/main/reference/basic-insights-use-case.md): ordered `results.entities` with names and entity IDs.
 - [Affinity interpretation](https://github.com/qloo/docs-public/blob/main/docs/interpreting-affinity-scores.md): affinity is normalized per query. Preserve returned rank as evidence; do not call it attendance probability or compare unverified raw score fields across cohorts.
 
-Exact explainability payloads and live responses remain to be validated with the event credential. A candidate missing from a response has no observed provider rank. Qloo does not establish screening rights, fees, or local availability.
+Live search access has been observed through the entrant’s browser. Exact Insights/explainability payloads and the full live recovery remain to be validated with the event credential. A candidate missing from a response has no observed provider rank. Qloo does not establish screening rights, fees, or local availability.
 
 ## Nebius integration
 

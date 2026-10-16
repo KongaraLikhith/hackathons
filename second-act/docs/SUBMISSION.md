@@ -28,7 +28,7 @@ An optional Nebius-hosted NVIDIA Nemotron step drafts an audience notice from th
 
 ## How we built it
 
-The implementation separates inventory validation and deterministic candidate selection from external provider calls. Qloo is used for the bounded cultural ranking task; the local engine handles screening eligibility and cohort tradeoffs. Evidence is not rescaled when a constraint removes a film. Entity resolution requires one exact normalized-name match or an organizer-supplied Qloo UUID; ambiguous names stop the live flow. Provider credentials stay on the server. The interface exposes where a recommendation came from and whether it uses live evidence or synthetic fixtures.
+The implementation separates inventory validation and deterministic candidate selection from external provider calls. Qloo is used for the bounded cultural ranking task; the local engine handles screening eligibility and cohort tradeoffs. Evidence is not rescaled when a constraint removes a film. Entity resolution checks exact normalized name/type and a supplied movie year. Remaining ambiguous identities open an in-app confirmation step with actual Qloo candidates; the organizer chooses explicitly before the recovery continues. An independently verified Qloo UUID remains supported. Provider credentials stay on the server. The interface exposes where a recommendation came from and whether it uses live evidence or synthetic fixtures.
 
 The Nebius entry targets **Best Apps and Agents** and uses `[exact NVIDIA model ID]` through `[verified Nebius Token Factory endpoint]`. Record the actual provider and model only after a successful live call.
 
@@ -56,7 +56,7 @@ The next validation step is to test the workflow with a cinema programmer using 
 
 ## Provider status and known limits
 
-- No successful live Qloo or Nebius call has been established for this submission draft. Fixture ranks and inventory rows are fictional, not measured validation.
+- The entrant’s browser has reached live Qloo search; a complete live Insights/recovery outcome is still pending, and no live Nebius call has been established. Fixture ranks and inventory rows are fictional, not measured validation.
 - The tool does not acquire rights, contact distributors, send audience notices, or execute a booking. A human verifies permissions and approves communications.
 - Qloo rank is relative to each cohort's query. It does not establish screening demand, and a missing candidate is not proof that an audience dislikes it.
 - The prototype is not a full cinema scheduling or accounting system. It addresses a bounded replacement incident with an imported inventory.

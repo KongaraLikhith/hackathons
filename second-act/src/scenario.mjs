@@ -1,7 +1,7 @@
 export const cohorts = [
-  {id:'regulars',name:'The regulars',size:42,color:'#6966db',anchors:[{name:'The Grand Budapest Hotel',kind:'movie'},{name:'David Bowie',kind:'artist'}]},
-  {id:'newcomers',name:'First-time guests',size:24,color:'#e78654',anchors:[{name:'Spirited Away',kind:'movie'},{name:'Joe Hisaishi',kind:'artist'}]},
-  {id:'filmclub',name:'The quiet film club',size:12,color:'#39988e',anchors:[{name:'Perfect Days',kind:'movie'},{name:'Norwegian Wood',kind:'book'}]}
+  {id:'regulars',name:'The regulars',size:42,color:'#6966db',anchors:[{name:'The Grand Budapest Hotel',kind:'movie',year:2014},{name:'David Bowie',kind:'artist'}]},
+  {id:'newcomers',name:'First-time guests',size:24,color:'#e78654',anchors:[{name:'Spirited Away',kind:'movie',year:2001},{name:'Joe Hisaishi',kind:'artist'}]},
+  {id:'filmclub',name:'The quiet film club',size:12,color:'#39988e',anchors:[{name:'Perfect Days',kind:'movie',year:2023},{name:'Norwegian Wood',kind:'book'}]}
 ];
 // All contracts, prices, cohorts and scores below are authored demonstration data.
 const films = [
