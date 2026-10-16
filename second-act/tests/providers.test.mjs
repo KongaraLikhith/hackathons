@@ -47,7 +47,7 @@ test('uses exact documented Qloo calls, conservative normalized names, and order
   assert.match(result.methodology, /not an affinity probability/);
   assert.equal(calls.length, 5);
   for (const { parsed, options } of calls) {
-    assert.equal(parsed.origin, 'https://api.qloo.com');
+    assert.equal(parsed.origin, 'https://hackathon.api.qloo.com');
     assert.equal(options.method, 'GET');
     assert.equal(options.headers['X-Api-Key'], env.QLOO_API_KEY);
     assert.equal(options.redirect, 'error');
@@ -59,17 +59,32 @@ test('uses exact documented Qloo calls, conservative normalized names, and order
 
 test('explicit UUIDs avoid lookup calls and a sole returned candidate receives 100', async () => {
   const request = explicitRequest();
-  request.inventory[0].qlooEntityId = request.inventory[0].qlooEntityId.toUpperCase();
+  const filmId = 'abcdefab-cdef-4abc-8def-abcdefabcdef';
+  request.inventory[0].qlooEntityId = filmId.toUpperCase();
   let count = 0;
   const result = await getLiveEvidence(request, env, { fetchImpl: async (url) => {
     count++;
-    assert.equal(new URL(url).pathname, '/v2/insights');
-    return json({ results: { entities: [entity('Film A', 1)] } });
+    const parsed = new URL(url);
+    assert.equal(parsed.pathname, '/v2/insights');
+    assert.equal(parsed.searchParams.get('filter.results.entities').split(',')[0], filmId);
+    return json({ results: { entities: [{ ...entity('Film A', 1), entity_id: filmId }] } });
   } });
   assert.equal(count, 1);
+  assert.equal(result.resolvedInventory[0].qlooEntityId, filmId);
   assert.deepEqual(result.support['film-a']['cohort-a'], { value: 100, source: 'qloo', rank: 0, count: 1 });
   assert.deepEqual(result.support['film-b'], {});
   assert.match(result.trace[0].detail, /identity was not reverified/);
+});
+
+test('Qloo redirects are rejected without retrying another origin', async () => {
+  let calls = 0;
+  await assert.rejects(getLiveEvidence(explicitRequest(), env, { fetchImpl: async (url, options) => {
+    calls++;
+    assert.equal(new URL(url).origin, 'https://hackathon.api.qloo.com');
+    assert.equal(options.redirect, 'error');
+    return new Response(null, { status: 302, headers: { Location: 'https://api.qloo.com/v2/insights' } });
+  } }), { code: 'PROVIDER_REQUEST_REJECTED', upstreamStatus: 302 });
+  assert.equal(calls, 1);
 });
 
 test('count and rank use the full returned inventory list', async () => {

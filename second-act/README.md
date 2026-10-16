@@ -21,7 +21,7 @@ Open http://127.0.0.1:4173. The dependency-free application is packaged as one C
 
 Sample mode works without accounts. Its audience, contract records, prices and support indices are fictional, visibly labeled demonstration data. Film titles identify cultural entities; they do not imply actual screening availability. Original abstract covers contain no third-party poster images. Imported titles or changed taste anchors receive no invented sample evidence.
 
-Live mode resolves exact named Qloo movie/artist/book entities (or organizer-provided Qloo UUIDs), requests movie insights for the supplied inventory separately for each audience cohort, then uses the returned order as a relative rank index. An ambiguous name fails and requires an explicit UUID. Missing results remain missing evidence. Upstream results outside the requested catalog fail closed.
+Live mode uses the assigned `https://hackathon.api.qloo.com` server and resolves exact named Qloo movie/artist/book entities (or organizer-provided Qloo UUIDs), requests movie insights for the supplied inventory separately for each audience cohort, then uses the returned order as a relative rank index. An ambiguous name fails and requires an explicit UUID. Missing results remain missing evidence. Upstream results outside the requested catalog fail closed.
 
 Qloo results are normalized per query, so this app never compares raw cross-query affinities. It uses relative rank indices (first 100, last 0; singleton 100). This pragmatic ordinal heuristic is not a calibrated probability or a measured audience effect. The default utility is 70% minimum cohort index plus 30% cohort-size-weighted mean. An explicit baseline chooses the highest population-weighted mean from the same eligible catalog. Scores remain stable when constraints remove films from the supplied catalog.
 
@@ -33,7 +33,7 @@ Set LIVE_CALLS_ENABLED=true only after confirming granted free credits/quotas an
 
 For local development, export those variable names in your shell or use your trusted secret manager before npm run dev. See .env.example for names; the app does not load .env files automatically. Never paste keys into the browser, commit them, or include them in a recovery export.
 
-Actual authenticated provider calls have not been verified in this build because account keys are pending. Mocked tests establish adapter behavior, not provider account compatibility. The current Nebius integration drafts a notice from supplied facts; it does not decide the replacement or guarantee accurate prose. Review drafts before use.
+The organizer-issued Qloo key was configured as a hosted runtime secret on 16 October 2026, with live mode enabled for the hackathon allowance. Authenticated calls remain unverified: this coding workspace blocks outbound connections to the Qloo host and deployed app before either service is reached. The app reports credential configuration, not successful authentication. Mocked tests establish adapter behavior, not provider account compatibility. No Nebius credential is configured. The current Nebius integration drafts a notice from supplied facts; it does not decide the replacement or guarantee accurate prose. Review drafts before use.
 
 ## Catalog import
 
@@ -55,8 +55,10 @@ The browser optionally registers the recovery action with WebMCP when document.m
 
 ## Hackathon targets and remaining work
 
-Primary: Qloo Agentic Hackathon, October30,2026,11:45pm Eastern. Secondary: Nebius × NVIDIA Global AI Hackathon, October30,2026,1pm Eastern. Read docs/SOURCES.md and the official rules before submission.
+Primary: Qloo Agentic Hackathon, October30,2026,11:45pm Eastern. The optional Nebius entry is paused because standard onboarding requires a payment card; no paid service is provisioned. Read docs/SOURCES.md and the official rules before submission.
 
-This is a working sample prototype with provider adapters and submission drafts, not an event-ready submission yet. Remaining requirements: verified live Qloo calls, verified NVIDIA model calls on Nebius for the second event, externally public demo, public open-source repository, eligibility/affiliation confirmation, and a publicly visible YouTube demo under three minutes for Nebius. Qloo does not require a video. Neither entry has been submitted. A top-three finish cannot be guaranteed.
+The app and MIT source are public at https://second-act-cinema-desk.likhithk085.chatgpt.site and https://github.com/KongaraLikhith/hackathons/tree/main/second-act. Remaining Qloo work: verify authenticated calls, review entrant eligibility/affiliation and project claims, then finalize and submit the Devpost entry. The entrant has registered and created a draft; final submission is not recorded. Qloo does not require a video. A top-three finish cannot be guaranteed.
+
+Run `python3 scripts/verify-live.py` with a configured environment secret or hidden key prompt after permitting the two network hosts. It records sanitized search, Insights and full-app checks in `work/live-verification.json`. See docs/LIVE-VERIFICATION.md for the current evidence status.
 
 See docs/SUBMISSION.md for a draft, docs/DEMO.md for narration, docs/READINESS.md for the release checklist. Source is MIT licensed. AI coding assistance was used; entrant should review and understand the code and confirm ownership/participation representations.

@@ -1,6 +1,6 @@
 // The provider adapters deliberately use only documented IDs and list order.
 // They never fall back to curated evidence or expose upstream error bodies.
-const QLOO_ORIGIN = 'https://api.qloo.com';
+const QLOO_ORIGIN = 'https://hackathon.api.qloo.com';
 const NEBIUS_COMPLETIONS = 'https://api.tokenfactory.nebius.com/v1/chat/completions';
 const CALL_TIMEOUT_MS = 12_000;
 const CONCURRENCY = 4;

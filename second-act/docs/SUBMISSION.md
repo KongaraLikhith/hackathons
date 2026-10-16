@@ -1,6 +1,6 @@
 # Second Act — Devpost draft
 
-**Status:** draft for a local prototype. Live provider verification, public deployment, public repository, video, and Devpost submission are pending. Replace every bracketed field before publishing. Keep the limitations accurate after verification.
+**Status:** draft for the public Second Act prototype. The assigned Qloo event key is configured server-side; authenticated verification, entrant review and final Devpost submission remain pending. Replace every bracketed field before publishing. Keep the limitations accurate after verification.
 
 ## Project name
 
@@ -18,7 +18,7 @@ Second Act brings that decision into one incident desk. It combines organizer-su
 
 ## What it does
 
-The current prototype starts with a clearly labeled cancellation scenario. The organizer imports a small inventory containing rights windows, territory, remaining screening counts, runtime, and fees. Second Act requires candidates to meet those constraints before it recommends a replacement. Demo inventory is synthetic; the organizer remains responsible for verifying the underlying contracts.
+The current prototype starts with the fixed, clearly labeled Lantern Cinema example: Moonrise Kingdom becomes unavailable for 24 October 2026. The organizer imports a small inventory containing rights windows, territory, remaining screening counts, runtime, and fees. Second Act requires candidates to meet those constraints before it recommends a replacement. Demo inventory is synthetic; the organizer remains responsible for verifying the underlying contracts.
 
 Audience cohorts are described through chosen cultural anchors such as films, books, or artists. In live mode, Qloo ranks the bounded imported film inventory for each cohort; the local engine recommends only candidates that pass the screening constraints. It preserves that returned-order evidence and balances the weakest cohort against the population-weighted mean through a visible fairness setting. By default, the ranking combines 70% of the minimum cohort index with 30% of the population-weighted mean. Rank evidence is a decision aid, not a prediction of attendance.
 
@@ -67,13 +67,13 @@ The next validation step is to test the workflow with a cinema programmer using 
 
 | Field | Value to supply |
 | --- | --- |
-| Public working application | `[HTTPS URL]` |
-| Public open-source repository and license | `[repository URL; license]` |
+| Public application | https://second-act-cinema-desk.likhithk085.chatgpt.site — sample works; live authentication verification pending |
+| Public open-source repository and license | https://github.com/KongaraLikhith/hackathons/tree/main/second-act — MIT |
 | Public YouTube demo, under three minutes | `[video URL]` |
 | Entrant name / Devpost profile | `[name and profile]` |
 | Team | Solo |
-| Qloo entry | Primary; `[registered/submitted status]` |
-| Nebius entry | Secondary; `[exact selected track and status]` |
+| Qloo entry | Primary; registered and draft created, final submission pending |
+| Nebius entry | Paused because standard onboarding requires a payment card |
 | Verified provider evidence | `[redacted evidence path or link]` |
 
 ## Nebius tool feedback — complete after live use

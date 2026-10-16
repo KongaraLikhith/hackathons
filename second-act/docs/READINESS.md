@@ -1,15 +1,15 @@
 # Second Act — release and submission checklist
 
-As of 12 October 2026: local implementation is in progress; no live provider evidence, public release, video publication, or Devpost submission is recorded here. Checkboxes are obligations, not completed claims. Reconcile this document with the final release before publication.
+As of 16 October 2026: the working sample app and MIT source are public; the Qloo event key is configured server-side and the adapter targets the assigned hackathon host. Authenticated verification is pending because this workspace denies outbound connections before either host is reached. No final Devpost submission or user-study result is recorded. Mechanical tests do not complete entrant review checkpoints.
 
 ## What we need from the entrant
 
-- [ ] Qloo hackathon account and assigned event API key, requested through the [official event guide](https://docs.qloo.com/reference/qloo-llm-hackathon-developer-guide#getting-your-api-key). Configure `QLOO_API_KEY` as an environment secret, never in chat or source. Verify that the assigned credential supports the current `https://api.qloo.com` adapter; a different assigned host needs a reviewed adapter change before use.
-- [ ] Nebius Token Factory account, server-side `NEBIUS_API_KEY`, an available NVIDIA Nemotron model ID configured as `NEBIUS_MODEL`, and confirmation of the credits actually granted. The adapter uses `https://api.tokenfactory.nebius.com/v1/chat/completions` and caps each draft at 300 output tokens. Use no paid overages. A key for a different provider does not satisfy the Nebius platform requirement.
-- [ ] Public code-hosting account and repository target; public app hosting target that supports server-side secrets on a free tier or granted credits.
+- [x] Qloo registration and organizer-issued API key received. `QLOO_API_KEY` is a server runtime secret. The adapter targets the assigned `https://hackathon.api.qloo.com` host; authenticated compatibility remains a separate unchecked acceptance item below.
+- [ ] Optional Nebius entry is paused under the free-only/no-card constraint. If resumed: Nebius Token Factory account, server-side `NEBIUS_API_KEY`, an available NVIDIA Nemotron model ID configured as `NEBIUS_MODEL`, and confirmation of the credits actually granted. The adapter uses `https://api.tokenfactory.nebius.com/v1/chat/completions` and caps each draft at 300 output tokens. Use no paid overages. A key for a different provider does not satisfy the Nebius platform requirement.
+- [x] Public MIT repository at https://github.com/KongaraLikhith/hackathons/tree/main/second-act and hosted app at https://second-act-cinema-desk.likhithk085.chatgpt.site. Runtime secrets are configured separately from source.
 - [ ] Devpost entrant name/profile and confirmation that organizer/judge employment or family exclusions do not apply. US residence, age 24, and solo participation have been provided.
 - [ ] An actual cinema programmer who can review a short cancellation case, if available. The entrant must authorize any outreach; none has been sent. Obtain permission before sharing real contract or audience data. Clearly synthetic inventory can be used for the technical demo.
-- [ ] Final review of identity, authorship, open-source license, public app, repository, and video. No registration, public posting, or submission is claimed as complete.
+- [ ] Final review of identity, authorship, open-source license, public app, repository, and video. Qloo registration and public sample publication are complete; final submission and entrant review remain pending.
 
 ## Functional acceptance
 
@@ -51,7 +51,7 @@ Use this evidence to improve the product before the final video. A convincing en
 
 ## Qloo submission — 30 October, 11:45 PM EDT
 
-- [ ] Re-read [official rules](https://qloo.devpost.com/rules), confirm eligibility and the build window, and register the entrant.
+- [ ] Re-read [official rules](https://qloo.devpost.com/rules) and confirm exclusions/build window. Entrant registration and draft creation were completed separately.
 - [ ] Complete the working Qloo integration and a public hosted application. Demonstrate the bounded resolve → rank → validate → repair tool workflow and its fit to the event's agentic-tool/framework/integration requirement. Fixture-only mode is insufficient.
 - [ ] Publish the repository with the chosen open-source license, dependency notices, reproducible setup, and no secrets.
 - [ ] Complete the description, accurate built-with list, screenshots, and all required Devpost fields. Review [SUBMISSION.md](SUBMISSION.md) against the running release.
@@ -75,4 +75,4 @@ Use this evidence to improve the product before the final video. A convincing en
 - [ ] Verify app, repository, license, and video links from a clean browser.
 - [ ] Record final commit/version, release URL, submission time, and Devpost confirmation separately for each event.
 
-This checklist does not record completed external publication or certify a result. Record each actual release and submission separately after it occurs.
+Public sample publication is recorded above. Keep authenticated live verification, final entrant review and actual event submission separate from that release.

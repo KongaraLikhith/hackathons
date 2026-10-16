@@ -19,7 +19,7 @@ The entrant reports US residence, age 24, solo participation, and a free-tools-o
 
 ## Qloo integration
 
-- [Event API-key instructions](https://docs.qloo.com/reference/qloo-llm-hackathon-developer-guide#getting-your-api-key). This page was linked by the event but could not be fetched during research. The assigned key and its prescribed API origin require verification.
+- [Event API-key instructions](https://docs.qloo.com/reference/qloo-llm-hackathon-developer-guide#getting-your-api-key). This page was linked by the event but could not be fetched during research. The organizer subsequently assigned `https://hackathon.api.qloo.com`; the adapter now uses that exact origin. The key itself is not source material and is stored only as a runtime secret.
 - [Qloo's official documentation mirror](https://github.com/qloo/docs-public).
 - [Search](https://github.com/qloo/docs-public/blob/main/reference/get-search.md): resolve movie, artist, or book anchors to provider entities.
 - [Insights parameters](https://github.com/qloo/docs-public/blob/main/reference/insights-api-deep-dive.md): rank a bounded film inventory with `signal.interests.entities`, `filter.results.entities`, and `filter.type=urn:entity:movie`.

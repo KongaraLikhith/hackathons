@@ -4,7 +4,7 @@ root = Path(__file__).resolve().parent.parent
 with zipfile.ZipFile(root/'work/second-act-source.zip', 'w', zipfile.ZIP_DEFLATED) as z:
     for folder in ['src', 'tests', 'docs', 'scripts']:
         for path in sorted((root/folder).rglob('*')):
-            if path.is_file():
+            if path.is_file() and '__pycache__' not in path.parts and path.suffix not in ['.pyc', '.pyo']:
                 z.write(path, 'second-act/'+str(path.relative_to(root)))
     for name in ['README.md', 'LICENSE', 'package.json', 'package-lock.json', '.gitignore', '.env.example']:
         path = root/name
