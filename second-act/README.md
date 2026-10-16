@@ -11,11 +11,12 @@ Node 20+, Python 3 and npm are required.
 ```sh
 npm ci
 npm test
+npm run test:worker
 npm run build
 npm run dev
 ```
 
-Open http://127.0.0.1:4173. The dependency-free application is packaged as one Cloudflare-compatible ESM Worker. esbuild is a build-time dependency. The hosted worker serves all assets itself and uses no database.
+Open http://127.0.0.1:4173. The dependency-free application is packaged as one Cloudflare-compatible ESM Worker. esbuild is a build-time dependency; Miniflare/workerd is a test-only dependency. The hosted worker serves all assets itself and uses no database.
 
 ## Evidence modes
 
@@ -33,7 +34,9 @@ Set LIVE_CALLS_ENABLED=true only after confirming granted free credits/quotas an
 
 For local development, export those variable names in your shell or use your trusted secret manager before npm run dev. See .env.example for names; the app does not load .env files automatically. Never paste keys into the browser, commit them, or include them in a recovery export.
 
-The organizer-issued Qloo key was configured as a hosted runtime secret on 16 October 2026, with live mode enabled for the hackathon allowance. Authenticated calls remain unverified: this coding workspace blocks outbound connections to the Qloo host and deployed app before either service is reached. The app reports credential configuration, not successful authentication. Mocked tests establish adapter behavior, not provider account compatibility. No Nebius credential is configured. The current Nebius integration drafts a notice from supplied facts; it does not decide the replacement or guarantee accurate prose. Review drafts before use.
+The organizer-issued Qloo key was configured as a hosted runtime secret on 16 October 2026, with live mode enabled for the hackathon allowance. Authenticated calls remain unverified: this coding workspace blocks outbound connections to the Qloo host and deployed app before either service is reached. The app reports credential configuration, not successful authentication. Node tests and a workerd integration check with local provider fixtures establish adapter/runtime behavior, not provider account compatibility. No Nebius credential is configured. The current Nebius integration drafts a notice from supplied facts; it does not decide the replacement or guarantee accurate prose. Review drafts before use.
+
+The first public live test exposed a Worker runtime incompatibility: workerd rejects `redirect: error` before making a request. The adapter now uses `redirect: manual` and rejects any returned 3xx explicitly. The Worker-runtime regression suite exercises the built live-mode path against fixtures and checks that redirects never forward the key.
 
 ## Catalog import
 

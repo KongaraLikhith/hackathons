@@ -50,7 +50,7 @@ test('uses exact documented Qloo calls, conservative normalized names, and order
     assert.equal(parsed.origin, 'https://hackathon.api.qloo.com');
     assert.equal(options.method, 'GET');
     assert.equal(options.headers['X-Api-Key'], env.QLOO_API_KEY);
-    assert.equal(options.redirect, 'error');
+    assert.equal(options.redirect, 'manual');
     assert.ok(options.signal instanceof AbortSignal);
     assert.ok(!parsed.href.includes(env.QLOO_API_KEY));
   }
@@ -81,7 +81,7 @@ test('Qloo redirects are rejected without retrying another origin', async () => 
   await assert.rejects(getLiveEvidence(explicitRequest(), env, { fetchImpl: async (url, options) => {
     calls++;
     assert.equal(new URL(url).origin, 'https://hackathon.api.qloo.com');
-    assert.equal(options.redirect, 'error');
+    assert.equal(options.redirect, 'manual');
     return new Response(null, { status: 302, headers: { Location: 'https://api.qloo.com/v2/insights' } });
   } }), { code: 'PROVIDER_REQUEST_REJECTED', upstreamStatus: 302 });
   assert.equal(calls, 1);

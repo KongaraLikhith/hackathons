@@ -65,7 +65,9 @@ async function requestJSON(url, options, { provider, fetchImpl, tool }) {
     const data = await Promise.race([
       timeout,
       (async () => {
-        const response = await fetchImpl(url, { ...options, signal: controller.signal, redirect: 'error' });
+        // workerd rejects redirect:'error' before sending any request. Manual
+        // returns 3xx unchanged so the non-2xx guard below rejects redirects.
+        const response = await fetchImpl(url, { ...options, signal: controller.signal, redirect: 'manual' });
         if (!response || !Number.isInteger(response.status)) {
           throw fail('PROVIDER_INVALID_RESPONSE', 'The provider returned an invalid HTTP response.', { provider });
         }
